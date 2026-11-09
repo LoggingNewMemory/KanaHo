@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.kanagawa.yamada.inaho"
+    namespace = "kana.wesley.yamada.kanaho"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.kanagawa.yamada.inaho"
+        applicationId = "kana.wesley.yamada.kanaho"
         minSdk = 24
         targetSdk = 35
         versionCode = 1

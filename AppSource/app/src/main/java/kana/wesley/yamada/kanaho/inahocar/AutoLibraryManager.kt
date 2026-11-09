@@ -1,0 +1,316 @@
+/*
+ * Inaho Music Player - Android Auto Library Manager
+ * Copyright (C) 2026 Kanagawa Yamada
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+package kana.wesley.yamada.kanaho.inahocar
+
+import android.content.ContentUris
+import android.content.Context
+import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
+import kana.wesley.yamada.kanaho.Song
+import kana.wesley.yamada.kanaho.PlaylistManager
+import kana.wesley.yamada.kanaho.EqPreset
+import kana.wesley.yamada.kanaho.SettingsManager
+import java.io.File
+import java.util.concurrent.TimeUnit
+import kotlin.collections.forEach
+
+class AutoLibraryManager(private val context: Context) {
+
+    companion object {
+        const val ROOT_ID = "inaho_root_v2"
+        const val CATEGORY_SONGS = "category_1_songs"
+        const val CATEGORY_PLAYLISTS = "category_2_playlists"
+        const val CATEGORY_EQ = "category_3_eq"
+        const val PREFIX_PLAYLIST = "playlist_"
+        const val PREFIX_EQ = "preset_"
+    }
+
+    // Helper to create a browsable category item
+    private fun createBrowsableItem(id: String, title: String, subtitle: String): MediaItem {
+        return MediaItem.Builder()
+            .setMediaId(id)
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle(title)
+                    .setSubtitle(subtitle)
+                    .setIsBrowsable(true)
+                    .setIsPlayable(false)
+                    .build()
+            )
+            .build()
+    }
+
+    // Helper to create a playable song item
+    private fun createPlayableItem(song: Song): MediaItem {
+        val artFile = File(context.cacheDir, "art/${song.id}.png")
+        val artUri = if (artFile.exists()) Uri.fromFile(artFile) else null
+
+        return MediaItem.Builder()
+            .setMediaId(song.id.toString())
+            .setRequestMetadata(
+                MediaItem.RequestMetadata.Builder()
+                    .setMediaUri(song.trackUri)
+                    .build()
+            )
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle(song.title)
+                    .setArtist(song.artist)
+                    .setArtworkUri(artUri)
+                    .setIsBrowsable(false)
+                    .setIsPlayable(true)
+                    .build()
+            )
+            .build()
+    }
+
+    var lastBrowsedSongs: List<Song> = emptyList()
+
+    fun getItem(mediaId: String): MediaItem? {
+        if (mediaId == ROOT_ID) {
+            return MediaItem.Builder()
+                .setMediaId(ROOT_ID)
+                .setMediaMetadata(
+                    MediaMetadata.Builder()
+                        .setIsBrowsable(true)
+                        .setIsPlayable(false)
+                        .build()
+                )
+                .build()
+        }
+        if (mediaId == CATEGORY_SONGS) {
+            return createBrowsableItem(CATEGORY_SONGS, "Songs", "Browse all local music")
+        }
+        if (mediaId == CATEGORY_PLAYLISTS) {
+            return createBrowsableItem(CATEGORY_PLAYLISTS, "Playlists", "Browse custom playlists")
+        }
+        if (mediaId == CATEGORY_EQ) {
+            return createBrowsableItem(CATEGORY_EQ, "Yamada AE", "Select Audio Preset")
+        }
+        val songId = mediaId.toLongOrNull()
+        if (songId != null) {
+            val song = fetchSongs(null, null).find { it.id == songId }
+            if (song != null) {
+                return createPlayableItem(song)
+            }
+        }
+        return null
+    }
+
+    fun getChildren(parentId: String): List<MediaItem> {
+        val items = mutableListOf<MediaItem>()
+        
+        when {
+            parentId == ROOT_ID -> {
+                items.add(createBrowsableItem(CATEGORY_SONGS, "Songs", "Browse all local music"))
+                items.add(createBrowsableItem(CATEGORY_PLAYLISTS, "Playlists", "Browse custom playlists"))
+                items.add(createBrowsableItem(CATEGORY_EQ, "Yamada AE", "Select Audio Preset"))
+            }
+            parentId == CATEGORY_SONGS -> {
+                val songs = fetchSongs(null, null)
+                lastBrowsedSongs = songs
+                songs.forEach { items.add(createPlayableItem(it)) }
+            }
+            parentId == CATEGORY_PLAYLISTS -> {
+                val freshPlaylistManager = PlaylistManager(context)
+                val favorites = freshPlaylistManager.favoritesFlow.value
+                if (favorites.isNotEmpty()) {
+                    items.add(createBrowsableItem("${PREFIX_PLAYLIST}favorites", "Favorites", "${favorites.size} songs"))
+                }
+                
+                val playlists = freshPlaylistManager.customPlaylistsFlow.value
+                playlists.forEach { pl ->
+                    items.add(createBrowsableItem("$PREFIX_PLAYLIST${pl.id}", pl.name, "${pl.songIds.size} songs"))
+                }
+            }
+            parentId.startsWith(PREFIX_PLAYLIST) -> {
+                val plIdStr = parentId.removePrefix(PREFIX_PLAYLIST)
+                val freshPlaylistManager = PlaylistManager(context)
+                
+                val songIds = if (plIdStr == "favorites") {
+                    freshPlaylistManager.favoritesFlow.value
+                } else {
+                    val plId = plIdStr.toLongOrNull()
+                    if (plId != null) {
+                        freshPlaylistManager.customPlaylistsFlow.value.find { it.id == plId }?.songIds
+                    } else null
+                }
+                
+                if (songIds != null) {
+                    val allSongs = fetchSongs(null, null)
+                    val playlistSongs = songIds.mapNotNull { id -> allSongs.find { it.id == id } }
+                    lastBrowsedSongs = playlistSongs
+                    playlistSongs.forEach { items.add(createPlayableItem(it)) }
+                }
+            }
+            parentId == CATEGORY_EQ -> {
+                val eqPrefs = context.getSharedPreferences("inaho_eq", Context.MODE_PRIVATE)
+                val rgEnabled = eqPrefs.getBoolean("replaygain_enabled", false)
+                val currentPresetName = eqPrefs.getString("preset", EqPreset.OFF.name) ?: EqPreset.OFF.name
+                
+                val rgStateStr = if (rgEnabled) "On" else "Off"
+                items.add(
+                    MediaItem.Builder()
+                        .setMediaId("action_toggle_replaygain")
+                        .setMediaMetadata(
+                            MediaMetadata.Builder()
+                                .setTitle("Toggle ReplayGain ($rgStateStr)")
+                                .setSubtitle("Normalize volume across tracks")
+                                .setIsBrowsable(false)
+                                .setIsPlayable(true)
+                                .build()
+                        )
+                        .build()
+                )
+
+                EqPreset.values().forEach { preset ->
+                    val isActive = preset.name == currentPresetName
+                    val titleSuffix = if (isActive) " (Active)" else ""
+                    items.add(
+                        MediaItem.Builder()
+                            .setMediaId("$PREFIX_EQ${preset.name}")
+                            .setMediaMetadata(
+                                MediaMetadata.Builder()
+                                    .setTitle("${preset.emoji} ${preset.displayName}$titleSuffix")
+                                    .setSubtitle(preset.description)
+                                    .setIsBrowsable(false)
+                                    .setIsPlayable(true)
+                                    .build()
+                            )
+                            .build()
+                    )
+                }
+            }
+        }
+        
+        return items
+    }
+
+    private fun fetchUniqueArtists(): List<String> {
+        val artists = mutableSetOf<String>()
+        val uri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+        val projection = arrayOf(MediaStore.Audio.Media.ARTIST)
+        val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
+        
+        try {
+            context.contentResolver.query(uri, projection, selection, null, "${MediaStore.Audio.Media.ARTIST} ASC")?.use { cursor ->
+                while (cursor.moveToNext()) {
+                    val artist = cursor.getString(0) ?: "Unknown Artist"
+                    artists.add(artist)
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return artists.toList().sorted()
+    }
+
+    private fun fetchUniqueAlbums(): List<String> {
+        val albums = mutableSetOf<String>()
+        val uri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+        val projection = arrayOf(MediaStore.Audio.Media.ALBUM)
+        val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
+        
+        try {
+            context.contentResolver.query(uri, projection, selection, null, "${MediaStore.Audio.Media.ALBUM} ASC")?.use { cursor ->
+                while (cursor.moveToNext()) {
+                    val album = cursor.getString(0) ?: "Unknown Album"
+                    albums.add(album)
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return albums.toList().sorted()
+    }
+
+    private val settingsManager = SettingsManager(context)
+
+    fun fetchSongs(selectionExtra: String?, selectionArgs: Array<String>?): List<Song> {
+        val songs = mutableListOf<Song>()
+        val settings = settingsManager.settingsFlow.value
+        
+        val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL)
+        } else {
+            MediaStore.Files.getContentUri("external")
+        }
+        
+        val projection = arrayOf(
+            MediaStore.Files.FileColumns._ID, 
+            MediaStore.Files.FileColumns.TITLE, 
+            MediaStore.Files.FileColumns.ARTIST, 
+            MediaStore.Files.FileColumns.DATA, 
+            MediaStore.Files.FileColumns.DURATION,
+            MediaStore.Files.FileColumns.MEDIA_TYPE
+        )
+        
+        var selection = "(" +
+                "${MediaStore.Files.FileColumns.MEDIA_TYPE} = ${MediaStore.Files.FileColumns.MEDIA_TYPE_AUDIO} OR " +
+                "${MediaStore.Files.FileColumns.MEDIA_TYPE} = ${MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO}" +
+                ") AND ${MediaStore.Files.FileColumns.DURATION} > 10000"
+
+        if (settings.onlyMusicFolder) {
+            selection += if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                " AND ${MediaStore.Files.FileColumns.RELATIVE_PATH} LIKE '%Music/%'"
+            } else {
+                " AND ${MediaStore.Files.FileColumns.DATA} LIKE '%/Music/%'"
+            }
+        }
+        
+        if (selectionExtra != null) {
+            selection += " AND $selectionExtra"
+        }
+        
+        try {
+            context.contentResolver.query(collection, projection, selection, selectionArgs, "${MediaStore.Files.FileColumns.TITLE} ASC")?.use { cursor ->
+                val idCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns._ID)
+                val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.TITLE)
+                val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.ARTIST)
+                val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
+                val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DURATION)
+                val mediaTypeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MEDIA_TYPE)
+                
+                while (cursor.moveToNext()) {
+                    val id = cursor.getLong(idCol)
+                    val title = cursor.getString(titleCol) ?: "Unknown"
+                    val artist = cursor.getString(artistCol) ?: "Unknown"
+                    val path = cursor.getString(dataCol) ?: ""
+                    val duration = cursor.getLong(durationCol)
+                    val isVideo = cursor.getInt(mediaTypeCol) == MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO
+                    
+                    val baseUri = if (isVideo) MediaStore.Video.Media.EXTERNAL_CONTENT_URI else MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+                    val trackUri = ContentUris.withAppendedId(baseUri, id)
+                    
+                    val m = TimeUnit.MILLISECONDS.toMinutes(duration)
+                    val s = TimeUnit.MILLISECONDS.toSeconds(duration) - TimeUnit.MINUTES.toSeconds(m)
+                    val formatted = String.format("%02d:%02d", m, s)
+                    
+                    songs.add(Song(id, title, artist, duration, trackUri, formatted, isVideo, path))
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return songs
+    }
+}
