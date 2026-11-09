@@ -101,7 +101,7 @@ fun HomeScreen(
     val accentColor = getAppAccentColor(settings)
 
     val isVip = remember(settings.userName) {
-        listOf("Kanagawa Yamada", "Ochinai Inaho", "落乃いなほ").contains(settings.userName.trim())
+        listOf("Kana", "Ochinai Inaho", "落乃いなほ").contains(settings.userName.trim())
     }
     val nameColor = if (isVip) accentColor else Color.White
 
