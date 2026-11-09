@@ -33,7 +33,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
-import com.kanagawa.yamada.inaho.R
+import kana.wesley.yamada.kanaho.R
 import kana.wesley.yamada.kanaho.Song
 import kana.wesley.yamada.kanaho.inahocar.AutoLibraryManager
 import kana.wesley.yamada.kanaho.EqPreset

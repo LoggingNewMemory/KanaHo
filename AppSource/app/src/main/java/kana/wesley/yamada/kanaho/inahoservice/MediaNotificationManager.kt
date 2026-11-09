@@ -28,10 +28,10 @@ class MediaNotificationManager(private val service: PlayerService) {
         const val CHANNEL_ID = "inaho_player"
         const val NOTIF_ID = 1
         
-        const val ACTION_PREV = "com.kanagawa.yamada.inaho.PREV"
-        const val ACTION_PLAY = "com.kanagawa.yamada.inaho.PLAY"
-        const val ACTION_NEXT = "com.kanagawa.yamada.inaho.NEXT"
-        const val ACTION_STOP = "com.kanagawa.yamada.inaho.STOP"
+        const val ACTION_PREV = "kana.wesley.yamada.kanaho.PREV"
+        const val ACTION_PLAY = "kana.wesley.yamada.kanaho.PLAY"
+        const val ACTION_NEXT = "kana.wesley.yamada.kanaho.NEXT"
+        const val ACTION_STOP = "kana.wesley.yamada.kanaho.STOP"
     }
 
     init {

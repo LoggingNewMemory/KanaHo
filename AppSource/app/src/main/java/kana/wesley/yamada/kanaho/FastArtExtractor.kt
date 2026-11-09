@@ -54,7 +54,7 @@ object FastArtExtractor {
                     try {
                         val art = nativeExtractArtFromPath(path)
                         if (art != null) return art
-                    } catch (_: Exception) {}
+                    } catch (_: Throwable) {}
                 }
             }
 
@@ -64,7 +64,7 @@ object FastArtExtractor {
                     val art = nativeExtractArtFd(pfd.fd)
                     if (art != null) return art
                 }
-            } catch (_: Exception) {}
+            } catch (_: Throwable) {}
 
             // 3. Fallback to stream bytes into Rust if fd is not seekable
             try {
@@ -75,7 +75,7 @@ object FastArtExtractor {
                         if (art != null) return art
                     }
                 }
-            } catch (_: Exception) {}
+            } catch (_: Throwable) {}
         }
 
         // 4. KOTLIN FALLBACK (Used if native library is unavailable or encounters error)

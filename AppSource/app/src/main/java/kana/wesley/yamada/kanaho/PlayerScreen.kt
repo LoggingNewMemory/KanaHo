@@ -355,7 +355,7 @@ fun PlayerScreen(
                             if (coverBitmap != null) Image(bitmap = coverBitmap.asImageBitmap(), contentDescription = "Album Art", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().alpha(coverAlpha))
                             else Box(modifier = Modifier.fillMaxSize().alpha(coverAlpha).background(surfaceColor), contentAlignment = Alignment.Center) { Icon(imageVector = Icons.Default.MusicNote, contentDescription = null, tint = Color(0xFF3D2020), modifier = Modifier.size(80.dp)) }
                         }
-                        AnimatedVisibility(visible = showQueueSheet, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
+                        androidx.compose.animation.AnimatedVisibility(visible = showQueueSheet, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
                             QueuePanel(
                                 playerState = playerState, 
                                 artCache = artCache, 
@@ -521,7 +521,7 @@ fun PlayerScreen(
                 }
 
                 // 3. Queue Panel overlays on top of the hidden video player
-                AnimatedVisibility(
+                androidx.compose.animation.AnimatedVisibility(
                     visible = showQueueSheet,
                     enter = fadeIn() + expandVertically(),
                     exit  = fadeOut() + shrinkVertically()

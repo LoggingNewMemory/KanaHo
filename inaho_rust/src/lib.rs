@@ -25,7 +25,7 @@ use jni::JNIEnv;
 
 /// Extract art directly from a Linux file descriptor without copying or buffering
 #[no_mangle]
-pub extern "system" fn Java_com_kanagawa_yamada_inaho_FastArtExtractor_nativeExtractArtFd(
+pub extern "system" fn Java_kana_wesley_yamada_kanaho_FastArtExtractor_nativeExtractArtFd(
     env: JNIEnv,
     _class: JClass,
     fd: jint,
@@ -49,7 +49,7 @@ pub extern "system" fn Java_com_kanagawa_yamada_inaho_FastArtExtractor_nativeExt
 
 /// Extract art from an in-memory byte array
 #[no_mangle]
-pub extern "system" fn Java_com_kanagawa_yamada_inaho_FastArtExtractor_nativeExtractArtFromBytes(
+pub extern "system" fn Java_kana_wesley_yamada_kanaho_FastArtExtractor_nativeExtractArtFromBytes(
     env: JNIEnv,
     _class: JClass,
     data: JByteArray,
@@ -71,7 +71,7 @@ pub extern "system" fn Java_com_kanagawa_yamada_inaho_FastArtExtractor_nativeExt
 
 /// Extract art from a direct file system path
 #[no_mangle]
-pub extern "system" fn Java_com_kanagawa_yamada_inaho_FastArtExtractor_nativeExtractArtFromPath(
+pub extern "system" fn Java_kana_wesley_yamada_kanaho_FastArtExtractor_nativeExtractArtFromPath(
     mut env: JNIEnv,
     _class: JClass,
     path: JString,
